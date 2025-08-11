@@ -43,11 +43,19 @@
 - ビルド: `npm run build`（型チェック + `dist/` 生成）
 - プレビュー: `npm run preview`
 - Lint: `npm run lint`
-- 備考: 将来の同時起動用に `signal`/`dev:all` スクリプトを定義済みですが、`server/index.mjs` は未実装です
+- シグナリング: `npm run signal`（WSシグナリングサーバを起動、既定: ws://localhost:3001）
+- 同時起動: `npm run dev:all`（フロントとシグナリングを同時起動）
 
 ## 使い方（共有）
 - `/r/sprint-42` のようなURLを共有し、相手は名前入力後に Join
 - ルーム画面の「Copy link」で現在の招待URLをクリップボードにコピー
+
+### WebRTC ミニマムデモの試し方
+1. 依存インストール: `npm install`
+2. 同時起動: `npm run dev:all`（Viteとシグナリングが立ち上がります）
+3. ブラウザを2つ開くか、別端末で同じルームURL（例: `http://localhost:5173/r/demo`）へアクセス
+4. 各自名前を入力して Join
+5. ルーム内「RTC Demo」でメッセージを入力し Send → 相手側のログに受信が表示されます
 
 ## ロードマップ（次フェーズ）
 - WebSocket シグナリングサーバ（`server/index.mjs`）
