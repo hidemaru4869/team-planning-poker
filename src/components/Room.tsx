@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   AppBar,
   Avatar,
@@ -17,6 +17,12 @@ import {
 import LogoutIcon from '@mui/icons-material/Logout'
 import RestartAltIcon from '@mui/icons-material/RestartAlt'
 import VisibilityIcon from '@mui/icons-material/Visibility'
+import WifiIcon from '@mui/icons-material/Wifi'
+import WifiOffIcon from '@mui/icons-material/WifiOff'
+import SendIcon from '@mui/icons-material/Send'
+import TextField from '@mui/material/TextField'
+import { SignalingClient } from '../rtc/signaling'
+import { RtcMesh } from '../rtc/mesh'
 
 type Player = { id: string; name: string }
 
@@ -44,12 +50,49 @@ export default function Room({ roomId, self, players, revealed, votes, onVote, o
       // ignore
     }
   }
+  const [rtcReady, setRtcReady] = useState(false)
+  const [peerCount, setPeerCount] = useState(0)
+  const [log, setLog] = useState<string[]>([])
+  const inputRef = useRef<HTMLInputElement>()
+  const meshRef = useRef<RtcMesh | null>(null)
+
+  useEffect(() => {
+    const signaling = new SignalingClient()
+    const mesh = new RtcMesh(signaling, {
+      onPeer: (_peer, connected) => {
+        setPeerCount((c) => Math.max(0, c + (connected ? 1 : -1)))
+        setRtcReady(true)
+      },
+      onMessage: (_from, data) => {
+        setLog((l) => [
+          `[recv] ${typeof data === 'string' ? data : JSON.stringify(data)}`,
+          ...l,
+        ])
+      },
+    })
+    meshRef.current = mesh
+    mesh.join(roomId, self.name).catch(() => setRtcReady(false))
+    return () => {
+      mesh.destroy()
+      meshRef.current = null
+    }
+  }, [roomId, self.name])
+
+  const sendTest = () => {
+    const msg = inputRef.current?.value || `hello from ${self.name}`
+    meshRef.current?.broadcast({ kind: 'test', msg, at: Date.now() })
+    setLog((l) => [`[send] ${msg}`, ...l])
+    if (inputRef.current) inputRef.current.value = ''
+  }
 
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
       <AppBar position="static" color="transparent" elevation={0} enableColorOnDark>
         <Toolbar>
           <Typography variant="h6" sx={{ flexGrow: 1 }}>Room: {roomId}</Typography>
+          <Tooltip title={rtcReady ? `${peerCount} peer(s) connected` : 'RTC connecting...'}>
+            <Chip icon={rtcReady ? <WifiIcon /> : <WifiOffIcon />} label={rtcReady ? `${peerCount}` : '—'} sx={{ mr: 1 }} />
+          </Tooltip>
           <Tooltip title="Copy invite link">
             <span>
               <Button onClick={copyInvite} sx={{ mr: 1 }}>
@@ -117,6 +160,19 @@ export default function Room({ roomId, self, players, revealed, votes, onVote, o
                   color={revealed && votes[p.id] ? 'primary' : 'default'}
                   variant={revealed ? 'filled' : 'outlined'}
                 />
+              ))}
+            </Stack>
+          </Paper>
+
+          <Paper variant="outlined" sx={{ p: 2 }}>
+            <Typography fontWeight={600} gutterBottom>RTC Demo</Typography>
+            <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
+              <TextField inputRef={inputRef} placeholder="message..." size="small" sx={{ flex: 1 }} />
+              <Button onClick={sendTest} endIcon={<SendIcon />}>Send</Button>
+            </Stack>
+            <Stack spacing={0.5} sx={{ maxHeight: 180, overflow: 'auto' }}>
+              {log.map((line, i) => (
+                <Typography key={i} variant="caption" sx={{ fontFamily: 'monospace' }}>{line}</Typography>
               ))}
             </Stack>
           </Paper>
